@@ -182,13 +182,17 @@ func (b *Bot) sendTopItemsByCategory(chatID int64, category string, page int) {
 	
 	if err != nil {
 		msg := tgbotapi.NewMessage(chatID, "Ошибка получения данных. Попробуйте позже.")
-		b.api.Send(msg)
+		if _, e := b.api.Send(msg); e != nil {
+			log.Printf("send error: %v", e)
+		}
 		return
 	}
 
 	if len(allTrends) == 0 {
 		msg := tgbotapi.NewMessage(chatID, "В данной категории пока нет анализируемых предметов. Попробуйте /analyze для обновления.")
-		b.api.Send(msg)
+		if _, e := b.api.Send(msg); e != nil {
+			log.Printf("send error: %v", e)
+		}
 		return
 	}
 
@@ -211,7 +215,7 @@ func (b *Bot) sendTopItemsByCategory(chatID int64, category string, page int) {
 	trends := allTrends[start:end]
 
 	categoryName := b.getCategoryName(category)
-	text := fmt.Sprintf("🏆 *%s* (стр. %d/%d)\n\n", categoryName, page, totalPages)
+	text := fmt.Sprintf("🏆 %s (стр. %d/%d)\n\n", categoryName, page, totalPages)
 	
 	for i, trend := range trends {
 		emoji := b.getRecommendationEmoji(trend.Recommendation)
@@ -258,9 +262,11 @@ func (b *Bot) sendTopItemsByCategory(chatID int64, category string, page int) {
 	keyboard = append(keyboard, []tgbotapi.InlineKeyboardButton{backButton})
 
 	msg := tgbotapi.NewMessage(chatID, text)
-	msg.ParseMode = "Markdown"
+	// Без ParseMode, чтобы избежать ошибок Markdown на названиях предметов
 	msg.ReplyMarkup = tgbotapi.NewInlineKeyboardMarkup(keyboard...)
-	b.api.Send(msg)
+	if _, e := b.api.Send(msg); e != nil {
+		log.Printf("send error: %v", e)
+	}
 }
 
 func (b *Bot) runAnalysis(chatID int64) {
@@ -368,31 +374,33 @@ func (b *Bot) sendItemDetails(chatID int64, itemID int) {
 		&growthRate, &volatility, &trendScore, &recommendation, &currentPrice, &dataPoints)
 	if err != nil {
 		msg := tgbotapi.NewMessage(chatID, "Ошибка получения информации о предмете.")
-		b.api.Send(msg)
+		if _, e := b.api.Send(msg); e != nil {
+			log.Printf("send error: %v", e)
+		}
 		return
 	}
 
 	emoji := b.getRecommendationEmoji(recommendation)
 	catEmoji := b.getCategoryEmoji(category)
 	
-	text := fmt.Sprintf("📊 *Подробный инвестиционный анализ*\n\n")
-	text += fmt.Sprintf("%s *%s*\n", catEmoji, marketName)
+	text := fmt.Sprintf("📊 Подробный инвестиционный анализ\n\n")
+	text += fmt.Sprintf("%s %s\n", catEmoji, marketName)
 	text += fmt.Sprintf("📂 Категория: %s\n\n", b.getCategoryName(category))
 	
-	text += fmt.Sprintf("💰 *Цена:* %.2f ₽\n", currentPrice)
-	text += fmt.Sprintf("📈 *Рост:* %.1f%% за период\n", growthRate)
-	text += fmt.Sprintf("📊 *Волатильность:* %.1f%%\n", volatility)
-	text += fmt.Sprintf("⭐ *Рейтинг:* %d/10\n", trendScore)
-	text += fmt.Sprintf("%s *Рекомендация:* %s\n\n", emoji, recommendation)
+	text += fmt.Sprintf("💰 Цена: %.2f ₽\n", currentPrice)
+	text += fmt.Sprintf("📈 Рост: %.1f%% за период\n", growthRate)
+	text += fmt.Sprintf("📊 Волатильность: %.1f%%\n", volatility)
+	text += fmt.Sprintf("⭐ Рейтинг: %d/10\n", trendScore)
+	text += fmt.Sprintf("%s Рекомендация: %s\n\n", emoji, recommendation)
 
 	// Детальная интерпретация
-	text += "🔍 *Почему стоит рассмотреть:*\n"
+	text += "🔍 Почему стоит рассмотреть:\n"
 	text += b.getDetailedAnalysis(trendScore, growthRate, currentPrice, category, volatility)
 	
-	text += "\n📈 *Инвестиционная стратегия:*\n"
+	text += "\n📈 Инвестиционная стратегия:\n"
 	text += b.getInvestmentStrategy(trendScore, recommendation, currentPrice, category)
 	
-	text += fmt.Sprintf("\n📊 *Надежность данных:* %d точек\n", dataPoints)
+	text += fmt.Sprintf("\n📊 Надежность данных: %d точек\n", dataPoints)
 
 	// Кнопка для возврата к списку
 	keyboard := tgbotapi.NewInlineKeyboardMarkup(
@@ -405,15 +413,17 @@ func (b *Bot) sendItemDetails(chatID int64, itemID int) {
 	if imageURL != "" && imageURL != "https://steamcommunity-a.akamaihd.net/economy/image/placeholder" {
 		photo := tgbotapi.NewPhoto(chatID, tgbotapi.FileURL(imageURL))
 		photo.Caption = text
-		photo.ParseMode = "Markdown"
 		photo.ReplyMarkup = keyboard
-		b.api.Send(photo)
+		if _, e := b.api.Send(photo); e != nil {
+			log.Printf("send error: %v", e)
+		}
 	} else {
 		// Отправляем текстовое сообщение если нет изображения
 		msg := tgbotapi.NewMessage(chatID, text)
-		msg.ParseMode = "Markdown"
 		msg.ReplyMarkup = keyboard
-		b.api.Send(msg)
+		if _, e := b.api.Send(msg); e != nil {
+			log.Printf("send error: %v", e)
+		}
 	}
 }
 
