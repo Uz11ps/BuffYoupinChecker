@@ -37,14 +37,29 @@ func (b *Bot) Start() {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
+	// На всякий случай отключаем вебхук и очищаем очередь, чтобы избежать конфликта getUpdates
+	b.api.Request(tgbotapi.DeleteWebhookConfig{})
+
 	updates := b.api.GetUpdatesChan(u)
 
+	// Воркер-пул для конкурентной обработки апдейтов
+	workerCount := 8
+	jobs := make(chan tgbotapi.Update, 100)
+
+	for i := 0; i < workerCount; i++ {
+		go func() {
+			for update := range jobs {
+				if update.Message != nil {
+					b.handleMessage(update.Message)
+				} else if update.CallbackQuery != nil {
+					b.handleCallbackQuery(update.CallbackQuery)
+				}
+			}
+		}()
+	}
+
 	for update := range updates {
-		if update.Message != nil {
-			b.handleMessage(update.Message)
-		} else if update.CallbackQuery != nil {
-			b.handleCallbackQuery(update.CallbackQuery)
-		}
+		jobs <- update
 	}
 }
 

@@ -45,6 +45,16 @@ func main() {
 	// Запускаем анализ в отдельной горутине
 	go startPeriodicAnalysis(trendAnalyzer)
 
+	// Мгновенный первый анализ при старте
+	go func() {
+		log.Println("🔍 Выполняю первичный анализ при старте...")
+		if err := trendAnalyzer.AnalyzeAllItems(); err != nil {
+			log.Printf("Ошибка первичного анализа: %v", err)
+		} else {
+			log.Println("✅ Первичный анализ завершен")
+		}
+	}()
+
 	log.Println("🤖 Бот запущен и готов к работе!")
 	
 	// Запускаем бота (блокирующий вызов)
@@ -116,9 +126,6 @@ func startDataCollection(client *market.Client, db *database.DB) {
 func startPeriodicAnalysis(analyzer *analyzer.TrendAnalyzer) {
 	ticker := time.NewTicker(30 * time.Minute) // Каждые 30 минут
 	defer ticker.Stop()
-
-	// Первый анализ через 5 минут после запуска
-	time.Sleep(5 * time.Minute)
 
 	for {
 		log.Println("🔍 Запускаю анализ трендов...")

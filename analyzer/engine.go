@@ -328,16 +328,27 @@ func (ta *TrendAnalyzer) GetBestInvestmentItems(limit int, minROI float64) ([]It
 }
 
 func (ta *TrendAnalyzer) GetTopItemsByCategory(category string, limit int) ([]ItemTrend, error) {
+	// По умолчанию используем минимальный порог рейтинга 6,
+	// но для стикеров снижаем порог до 4, чтобы избегать пустых выборок
+	minScore := 6
+	if category == "stickers" {
+		minScore = 4
+	}
+	return ta.GetTopItemsByCategoryMinScore(category, minScore, limit)
+}
+
+// Получить топ предметов по категории с настраиваемым минимальным рейтингом
+func (ta *TrendAnalyzer) GetTopItemsByCategoryMinScore(category string, minScore int, limit int) ([]ItemTrend, error) {
 	query := `SELECT ia.item_id, i.hash_name, i.market_name, i.category, i.image_url,
 			  ia.growth_rate, ia.volatility, ia.trend_score, ia.recommendation,
 			  (SELECT price FROM price_history WHERE item_id = ia.item_id ORDER BY recorded_at DESC LIMIT 1) as current_price
 			  FROM item_analysis ia
 			  JOIN items i ON ia.item_id = i.id
-			  WHERE i.category = $1 AND ia.trend_score >= 6
+			  WHERE i.category = $1 AND ia.trend_score >= $2
 			  ORDER BY ia.trend_score DESC, ia.growth_rate DESC
-			  LIMIT $2`
+			  LIMIT $3`
 
-	rows, err := ta.db.Query(query, category, limit)
+	rows, err := ta.db.Query(query, category, minScore, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -347,19 +358,19 @@ func (ta *TrendAnalyzer) GetTopItemsByCategory(category string, limit int) ([]It
 	for rows.Next() {
 		var trend ItemTrend
 		var currentPrice sql.NullFloat64
-		
-		err := rows.Scan(&trend.ItemID, &trend.HashName, &trend.MarketName, 
-			&trend.Category, &trend.ImageURL, &trend.GrowthRate, &trend.Volatility, 
+
+		err := rows.Scan(&trend.ItemID, &trend.HashName, &trend.MarketName,
+			&trend.Category, &trend.ImageURL, &trend.GrowthRate, &trend.Volatility,
 			&trend.TrendScore, &trend.Recommendation, &currentPrice)
 		if err != nil {
 			continue
 		}
-		
+
 		if currentPrice.Valid {
 			trend.CurrentPrice = currentPrice.Float64
-			trend.Price = currentPrice.Float64  // Для расчетов бюджета
+			trend.Price = currentPrice.Float64 // Для расчетов бюджета
 		}
-		
+
 		trends = append(trends, trend)
 	}
 
